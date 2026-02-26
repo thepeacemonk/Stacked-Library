@@ -1,0 +1,13 @@
+{
+  "name": "Simple Sidebar",
+  "description": "",
+  "preview": "src/simple_sidebar.js",
+  "main": "src/extension.js",
+  "readme": "README.md",
+  "authors": [
+    {
+      "name": "PeaceMonk",
+      "url": "https://github.com/Simple-Sidebar"
+    }
+  ]
+}
