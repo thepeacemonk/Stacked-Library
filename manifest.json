@@ -1,13 +1,14 @@
-{
-  "name": "Simple Sidebar",
-  "description": "",
-  "preview": "src/simple_sidebar.js",
-  "main": "src/extension.js",
-  "readme": "README.md",
-  "authors": [
-    {
-      "name": "PeaceMonk",
-      "url": "https://github.com/Simple-Sidebar"
-    }
-  ]
-}
+[
+  {
+    "name": "Spicetify Stacked Library",
+    "description": "Spicetify extension to stack and group artists, playlists and albuns on the sidebar",
+    "preview": "screenshot.png",
+    "main": "stacked_library.js",
+    "readme": "README.md",
+    "authors": [
+        { "name": "thepeacemonk", "url": "https://github.com/thepeacemonk" }
+    ]
+  }
+]
+
+
