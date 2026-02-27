@@ -2,7 +2,7 @@
   {
     "name": "Spicetify Stacked Library",
     "description": "Spicetify extension to stack and group artists, playlists and albuns on the sidebar",
-    "preview": "screenshot.png",
+    "preview": "preview.png",
     "main": "stacked_library.js",
     "readme": "README.md",
     "authors": [
