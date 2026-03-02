@@ -140,13 +140,39 @@
         items: [],
         folderItems: [],
         allPlaylists: [],
+        filterOwn: false,
+        sortAlpha: false,
+        searchQuery: "",
     };
+
+    function isHidden(item) {
+        if (!item) return true;
+        const n = item.name ? item.name.toLowerCase().trim() : "";
+        const uri = item.uri || "";
+
+        // Completely ignore items with no explicit URI (except local/liked system folders if they lack it briefly, which they shouldn't)
+        if (!uri) return true;
+
+        // Hide pseudo-empty items that appear as 'Unknown'
+        if (!item.name && !item.owner) return true;
+
+        if (uri.includes("spotify:station:ai") || uri.includes("spotify:ai-dj")) return true;
+
+        // Also block the specific known AI DJ playlist ID
+        if (uri.includes("37i9dQZF1EYkqdzj48dyYq")) return true;
+
+        if (n === "dj" || n === "ai dj" || n === "dj ai" || n === "spotify dj" || n === "tu dj" || n === "your dj") return true;
+        if (item.owner?.name === "Spotify" && (n.startsWith("dj ") || n.endsWith(" dj"))) return true;
+
+        return false;
+    }
 
     async function getPlaylistsRecursively(items) {
         let results = [];
         const folderPromises = [];
 
         for (const item of items) {
+            if (isHidden(item)) continue;
             if (item.type === "playlist") {
                 results.push(item);
             } else if (item.type === "folder" || item.type === "playlist-folder") {
@@ -421,7 +447,7 @@
     async function fetchLibrary() {
         try {
             const res = await Spicetify.Platform.LibraryAPI.getContents({ limit: 5000, offset: 0 });
-            return res.items || [];
+            return (res.items || []).filter(i => !isHidden(i));
         } catch (e) {
             console.error(e);
             return [];
@@ -430,6 +456,258 @@
 
     function renderHeader(container) {
         container.innerHTML = "";
+
+        // Render Top Bar with Filters
+        const topbar = document.createElement("div");
+        topbar.id = "stacked-library-topbar";
+        topbar.style.display = "flex";
+        topbar.style.gap = "8px";
+        topbar.style.padding = "16px 16px 0 16px";
+        topbar.style.alignItems = "center";
+        topbar.style.flexWrap = "wrap";
+
+        const createPill = (label, isActive, onClick) => {
+            const btn = document.createElement("button");
+            btn.textContent = label;
+            btn.style.borderRadius = "32px";
+            btn.style.padding = "6px 14px";
+            btn.style.fontSize = "13px";
+            btn.style.fontWeight = "700";
+            btn.style.border = "none";
+            btn.style.cursor = "pointer";
+            btn.style.backgroundColor = isActive ? "var(--spice-button, #1db954)" : "var(--spice-main-elevated, #2a2a2a)";
+            btn.style.color = isActive ? "#000" : "var(--spice-text, #fff)";
+            btn.style.transition = "background-color 0.2s, transform 0.1s";
+            if (!isActive) {
+                btn.onmouseenter = () => btn.style.backgroundColor = "var(--spice-highlight, #3a3a3a)";
+                btn.onmouseleave = () => btn.style.backgroundColor = "var(--spice-main-elevated, #2a2a2a)";
+            }
+            btn.onclick = onClick;
+            return btn;
+        };
+
+        topbar.appendChild(createPill("By you", state.filterOwn, () => {
+            state.filterOwn = !state.filterOwn;
+            render();
+        }));
+
+        topbar.appendChild(createPill("Alphabetical", state.sortAlpha, () => {
+            state.sortAlpha = !state.sortAlpha;
+            render();
+        }));
+
+        const searchContainer = document.createElement("div");
+        searchContainer.style.position = "relative";
+        searchContainer.style.marginLeft = "auto";
+
+        const searchInput = document.createElement("input");
+        searchInput.type = "text";
+        searchInput.placeholder = "Search...";
+        searchInput.value = state.searchQuery || "";
+        searchInput.style.borderRadius = "32px";
+        searchInput.style.padding = "6px 14px";
+        searchInput.style.fontSize = "13px";
+        searchInput.style.fontFamily = "inherit";
+        searchInput.style.border = "none";
+        searchInput.style.backgroundColor = "var(--spice-main-elevated, #2a2a2a)";
+        searchInput.style.color = "var(--spice-text, #fff)";
+        searchInput.style.outline = "none";
+        searchInput.style.width = "120px";
+        searchInput.style.boxSizing = "border-box";
+        searchInput.style.transition = "background-color 0.2s, width 0.2s";
+
+        searchInput.onmouseenter = () => {
+            if (document.activeElement !== searchInput) {
+                searchInput.style.backgroundColor = "var(--spice-highlight, #3a3a3a)";
+            }
+        };
+        searchInput.onmouseleave = () => {
+            if (document.activeElement !== searchInput) {
+                searchInput.style.backgroundColor = "var(--spice-main-elevated, #2a2a2a)";
+            }
+        };
+
+        searchInput.onfocus = () => {
+            searchInput.style.backgroundColor = "var(--spice-highlight, #3a3a3a)";
+            searchInput.style.width = "180px";
+            updateSearchResults();
+        };
+        searchInput.onblur = () => {
+            searchInput.style.backgroundColor = "var(--spice-main-elevated, #2a2a2a)";
+            searchInput.style.width = "120px";
+            setTimeout(() => {
+                const results = document.getElementById("sl-search-results");
+                if (results) results.style.display = "none";
+            }, 200);
+        };
+
+        searchInput.oninput = (e) => {
+            state.searchQuery = e.target.value.toLowerCase();
+            updateSearchResults();
+        };
+
+        searchContainer.appendChild(searchInput);
+
+        const searchResults = document.createElement("div");
+        searchResults.id = "sl-search-results";
+        searchResults.style.position = "absolute";
+        searchResults.style.top = "100%";
+        searchResults.style.left = "auto";
+        searchResults.style.right = "0"; // Align to right because it's at the end
+        searchResults.style.marginTop = "8px";
+        searchResults.style.width = "280px";
+        searchResults.style.maxHeight = "400px";
+        searchResults.style.overflowY = "auto";
+        searchResults.style.backgroundColor = "var(--spice-elevated-base, #282828)";
+        searchResults.style.borderRadius = "8px";
+        searchResults.style.boxShadow = "0 8px 24px rgba(0,0,0,0.5)";
+        searchResults.style.zIndex = "100";
+        searchResults.style.display = "none";
+        searchResults.style.flexDirection = "column";
+
+        searchResults.style.scrollbarWidth = "none";
+
+        searchContainer.appendChild(searchResults);
+
+        function updateSearchResults() {
+            const results = document.getElementById("sl-search-results");
+            if (!results) return;
+            const q = state.searchQuery;
+            if (!q) {
+                results.style.display = "none";
+                return;
+            }
+            results.style.display = "flex";
+            results.innerHTML = "";
+
+            const albums = state.items.filter(i => i.type === "album" && (i.name || "").toLowerCase().includes(q));
+
+            let allPlaylists = state.allPlaylists.filter(i => i.type === "playlist" && !isHidden(i));
+            allPlaylists = allPlaylists.filter(p => !p.uri.includes("collection:tracks") && !p.uri.includes("collection:local-files"));
+
+            allPlaylists.unshift(
+                { uri: "spotify:collection:tracks", name: "Liked Songs", type: "collection", owner: { name: "Spotify" } },
+                { uri: "spotify:collection:local-files", name: "Local Files", type: "collection", owner: { name: "Spotify" } }
+            );
+            const playlists = allPlaylists.filter(i => (i.name || "").toLowerCase().includes(q));
+
+            const artists = state.items.filter(i => i.type === "artist" && (i.name || "").toLowerCase().includes(q));
+
+            const createRow = (item, typeLabel) => {
+                const row = document.createElement("div");
+                row.style.display = "flex";
+                row.style.alignItems = "center";
+                row.style.padding = "8px 12px";
+                row.style.gap = "12px";
+                row.style.cursor = "pointer";
+                row.style.transition = "background-color 0.2s";
+
+                row.onmouseenter = () => row.style.backgroundColor = "var(--spice-highlight, #3a3a3a)";
+                row.onmouseleave = () => row.style.backgroundColor = "transparent";
+
+                row.onmousedown = (e) => {
+                    e.preventDefault();
+                };
+
+                row.onclick = () => {
+                    navigate(item.uri);
+                    state.searchQuery = "";
+                    searchInput.value = "";
+                    results.style.display = "none";
+                };
+
+                const imgWrap = document.createElement("div");
+                imgWrap.style.width = "40px";
+                imgWrap.style.height = "40px";
+                imgWrap.style.borderRadius = typeLabel === "Artist" ? "50%" : "4px";
+                imgWrap.style.overflow = "hidden";
+                imgWrap.style.flexShrink = "0";
+                imgWrap.style.backgroundColor = "var(--spice-main-elevated, #2a2a2a)";
+                imgWrap.style.display = "flex";
+                imgWrap.style.alignItems = "center";
+                imgWrap.style.justifyContent = "center";
+
+                let src = getImageUrl(item);
+                if (!src && item.uri === "spotify:collection:tracks") {
+                    imgWrap.style.background = "linear-gradient(135deg, #450af5, #c4efd9)";
+                    imgWrap.innerHTML = `<img src="https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/heart.svg" width="24" height="24" style="filter: invert(1); opacity: 0.9;" />`;
+                } else if (!src && item.uri === "spotify:collection:local-files") {
+                    imgWrap.style.background = "linear-gradient(135deg, #1db954, #191414)";
+                    imgWrap.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: white; opacity: 0.9;"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"></path><path d="M12 11v5"></path><circle cx="10.5" cy="16.5" r="1.5"></circle><path d="M12 11l3-1v4"></path></svg>`;
+                } else if (!src) {
+                    imgWrap.innerHTML = `<img src="https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/music.svg" width="20" height="20" style="filter: invert(0.5);" />`;
+                } else {
+                    const img = document.createElement("img");
+                    img.src = src;
+                    img.style.width = "100%";
+                    img.style.height = "100%";
+                    img.style.objectFit = "cover";
+                    imgWrap.appendChild(img);
+                }
+
+                const info = document.createElement("div");
+                info.style.display = "flex";
+                info.style.flexDirection = "column";
+                info.style.overflow = "hidden";
+                info.style.flex = "1";
+                info.style.justifyContent = "center";
+
+                const name = document.createElement("span");
+                name.style.fontSize = "14px";
+                name.style.color = "var(--spice-text, #fff)";
+                name.style.whiteSpace = "nowrap";
+                name.style.overflow = "hidden";
+                name.style.textOverflow = "ellipsis";
+                name.textContent = item.name || "Unknown";
+
+                const sub = document.createElement("span");
+                sub.style.fontSize = "13px";
+                sub.style.color = "var(--spice-subtext, #b3b3b3)";
+                sub.style.whiteSpace = "nowrap";
+                sub.style.overflow = "hidden";
+                sub.style.textOverflow = "ellipsis";
+
+                let subtitle = typeLabel;
+                if (item.owner?.name) subtitle += " • " + item.owner.name;
+                sub.textContent = subtitle;
+
+                info.appendChild(name);
+                info.appendChild(sub);
+
+                row.appendChild(imgWrap);
+                row.appendChild(info);
+
+                return row;
+            };
+
+            let count = 0;
+            const appendItems = (list, label) => {
+                for (let item of list) {
+                    if (count > 100) break;
+                    results.appendChild(createRow(item, label));
+                    count++;
+                }
+            };
+
+            appendItems(albums, "Album");
+            appendItems(playlists, "Playlist");
+            appendItems(artists, "Artist");
+
+            if (count === 0) {
+                const noRes = document.createElement("div");
+                noRes.style.padding = "16px";
+                noRes.style.color = "var(--spice-subtext, #b3b3b3)";
+                noRes.style.fontSize = "14px";
+                noRes.style.textAlign = "center";
+                noRes.textContent = "No results found";
+                results.appendChild(noRes);
+            }
+        }
+
+        topbar.appendChild(searchContainer);
+
+        container.appendChild(topbar);
+
         if (state.view !== "ROOT") {
             const header = document.createElement("div");
             header.id = "stacked-library-header";
@@ -491,7 +769,7 @@
         if (state.view === "FOLDER" && state.currentFolder) {
             try {
                 const res = await Spicetify.Platform.LibraryAPI.getContents({ limit: 5000, offset: 0, folderUri: state.currentFolder.uri });
-                state.folderItems = res.items || [];
+                state.folderItems = (res.items || []).filter(i => !isHidden(i));
             } catch (e) {
                 console.error("Failed to fetch folder items:", e);
                 state.folderItems = [];
@@ -504,21 +782,12 @@
         grid.id = "stacked-library-grid";
         rootContainer.appendChild(grid);
 
-        const folders = state.items.filter(i => i.type === "folder" || i.type === "playlist-folder");
-        const artists = state.items.filter(i => i.type === "artist");
-        const albums = state.items.filter(i => i.type === "album");
+        let folders = state.items.filter(i => i.type === "folder" || i.type === "playlist-folder");
+        let artists = state.items.filter(i => i.type === "artist");
+        let albums = state.items.filter(i => i.type === "album");
         let playlists = state.allPlaylists.filter(i => {
             if (i.type !== "playlist") return false;
-
-            const n = i.name ? i.name.toLowerCase().trim() : "";
-            const uri = i.uri || "";
-
-            if (uri.includes("spotify:station:ai") || uri.includes("spotify:ai-dj")) return false;
-            if (n === "dj" || n === "ai dj" || n === "dj ai" || n === "spotify dj" || n === "tu dj" || n === "your dj") return false;
-
-            if (i.owner?.name === "Spotify" && (n.startsWith("dj ") || n.endsWith(" dj"))) return false;
-
-            return true;
+            return !isHidden(i);
         }); // Hide AI DJ
 
         // Remove them to ensure no duplicates if returned by API
@@ -530,34 +799,72 @@
                 uri: "spotify:collection:tracks",
                 name: "Liked Songs",
                 type: "collection",
-                owner: { name: "Spotify" }
+                owner: { name: "Spotify" },
+                isOwnedBySelf: true,
+                availableOffline: true // Assume available offline if they want to filter it
             },
             {
                 uri: "spotify:collection:local-files",
                 name: "Local Files",
                 type: "collection",
-                owner: { name: "Spotify" }
+                owner: { name: "Spotify" },
+                isOwnedBySelf: true,
+                availableOffline: true
             }
         );
 
+        // Apply filters
+        const fallbackUserUri = Spicetify.Platform?.Session?.user?.uri || Spicetify.Platform?.UserAPI?._state?.currentUser?.uri || Spicetify.Session?.User?.uri;
+        const fallbackUserName = Spicetify.Platform?.Session?.user?.name || Spicetify.Platform?.Session?.user?.username || Spicetify.Platform?.UserAPI?._state?.currentUser?.name || Spicetify.Platform?.UserAPI?._state?.currentUser?.username || Spicetify.Session?.User?.name || Spicetify.Session?.User?.username;
+
+        const isOwn = (item) => {
+            if (item.isOwnedBySelf === true || item.ownedBySelf === true) return true;
+
+            const itemOwnerUri = item.owner?.uri || item.creator?.uri;
+            if (fallbackUserUri && itemOwnerUri && itemOwnerUri === fallbackUserUri) return true;
+
+            const itemOwnerName = item.owner?.name || item.creator?.name;
+            if (fallbackUserName && itemOwnerName && itemOwnerName === fallbackUserName) return true;
+
+            return false;
+        };
+
+        if (state.filterOwn) {
+            artists = [];
+            albums = [];
+            playlists = playlists.filter(isOwn);
+            if (state.folderItems) state.folderItems = state.folderItems.filter(i => i.type === "folder" || i.type === "playlist-folder" ? true : isOwn(i));
+        }
+
+        if (state.sortAlpha) {
+            const sortAlphaFunc = (a, b) => (a.name || "").localeCompare(b.name || "", undefined, { numeric: true });
+            folders.sort(sortAlphaFunc);
+            artists.sort(sortAlphaFunc);
+            albums.sort(sortAlphaFunc);
+            playlists.sort(sortAlphaFunc);
+            if (state.folderItems) state.folderItems.sort(sortAlphaFunc);
+        }
+
         if (state.view === "ROOT") {
             // 1. Artists Group (Yellow)
-            grid.appendChild(createCard(
-                "Artists",
-                artists.length + " artists",
-                null,
-                "sl-group-artists",
-                () => { state.view = "ARTISTS"; render(); scrollToTop(); }
-            ));
+            if (!state.filterOwn) {
+                grid.appendChild(createCard(
+                    "Artists",
+                    artists.length + " artists",
+                    null,
+                    "sl-group-artists",
+                    () => { state.view = "ARTISTS"; render(); scrollToTop(); }
+                ));
 
-            // 2. Albums Group (Green)
-            grid.appendChild(createCard(
-                "Albums",
-                albums.length + " albums",
-                null,
-                "sl-group-albums",
-                () => { state.view = "ALBUMS"; render(); scrollToTop(); }
-            ));
+                // 2. Albums Group (Green)
+                grid.appendChild(createCard(
+                    "Albums",
+                    albums.length + " albums",
+                    null,
+                    "sl-group-albums",
+                    () => { state.view = "ALBUMS"; render(); scrollToTop(); }
+                ));
+            }
 
             // 3. Playlists Group (Blue)
             grid.appendChild(createCard(
