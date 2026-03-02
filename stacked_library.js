@@ -139,7 +139,41 @@
         currentFolder: null,
         items: [],
         folderItems: [],
+        allPlaylists: [],
     };
+
+    async function getPlaylistsRecursively(items) {
+        let results = [];
+        const folderPromises = [];
+
+        for (const item of items) {
+            if (item.type === "playlist") {
+                results.push(item);
+            } else if (item.type === "folder" || item.type === "playlist-folder") {
+                folderPromises.push(
+                    Spicetify.Platform.LibraryAPI.getContents({ limit: 5000, offset: 0, folderUri: item.uri })
+                        .then(res => res.items ? getPlaylistsRecursively(res.items) : [])
+                        .catch(e => {
+                            console.error("Failed to fetch nested folder:", e);
+                            return [];
+                        })
+                );
+            }
+        }
+
+        const foldersContents = await Promise.all(folderPromises);
+        for (const content of foldersContents) {
+            results.push(...content);
+        }
+
+        // Deduplicate by URI
+        const seen = new Set();
+        return results.filter(p => {
+            if (seen.has(p.uri)) return false;
+            seen.add(p.uri);
+            return true;
+        });
+    }
 
     function navigate(uri) {
         if (!uri) return;
@@ -288,6 +322,7 @@
 
             setTimeout(async () => {
                 state.items = await fetchLibrary();
+                state.allPlaylists = await getPlaylistsRecursively(state.items);
                 if (state.currentFolder?.uri === uri) state.currentFolder.name = newName;
                 render();
             }, 800);
@@ -352,6 +387,12 @@
             cover.style.backgroundImage = `url(${coverUrl})`;
             cover.style.backgroundSize = "cover";
             cover.style.backgroundPosition = "center";
+        } else if (uri === "spotify:collection:tracks") {
+            cover.style.background = "linear-gradient(135deg, #450af5, #c4efd9)";
+            cover.innerHTML = `<img src="https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/heart.svg" width="48" height="48" style="filter: invert(1); opacity: 0.9;" />`;
+        } else if (uri === "spotify:collection:local-files") {
+            cover.style.background = "linear-gradient(135deg, #1db954, #191414)";
+            cover.innerHTML = `<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: white; opacity: 0.9;"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"></path><path d="M12 11v5"></path><circle cx="10.5" cy="16.5" r="1.5"></circle><path d="M12 11l3-1v4"></path></svg>`;
         } else if (typeClass.includes("sl-folder")) {
             cover.innerHTML = `<img src="https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/folder.svg" width="48" height="48" style="filter: invert(1); opacity: 0.85;" />`;
         } else if (typeClass.includes("sl-group-artists")) {
@@ -444,6 +485,7 @@
         // Ensure items are fetched
         if (!state.items.length) {
             state.items = await fetchLibrary();
+            state.allPlaylists = await getPlaylistsRecursively(state.items);
         }
 
         if (state.view === "FOLDER" && state.currentFolder) {
@@ -465,7 +507,38 @@
         const folders = state.items.filter(i => i.type === "folder" || i.type === "playlist-folder");
         const artists = state.items.filter(i => i.type === "artist");
         const albums = state.items.filter(i => i.type === "album");
-        const playlists = state.items.filter(i => i.type === "playlist" && !i.isPinned); // Might want to adjust for pinned
+        let playlists = state.allPlaylists.filter(i => {
+            if (i.type !== "playlist") return false;
+
+            const n = i.name ? i.name.toLowerCase().trim() : "";
+            const uri = i.uri || "";
+
+            if (uri.includes("spotify:station:ai") || uri.includes("spotify:ai-dj")) return false;
+            if (n === "dj" || n === "ai dj" || n === "dj ai" || n === "spotify dj" || n === "tu dj" || n === "your dj") return false;
+
+            if (i.owner?.name === "Spotify" && (n.startsWith("dj ") || n.endsWith(" dj"))) return false;
+
+            return true;
+        }); // Hide AI DJ
+
+        // Remove them to ensure no duplicates if returned by API
+        playlists = playlists.filter(p => p.uri !== "spotify:collection:tracks" && p.uri !== "spotify:collection:local-files");
+
+        // Inject them so they are first
+        playlists.unshift(
+            {
+                uri: "spotify:collection:tracks",
+                name: "Liked Songs",
+                type: "collection",
+                owner: { name: "Spotify" }
+            },
+            {
+                uri: "spotify:collection:local-files",
+                name: "Local Files",
+                type: "collection",
+                owner: { name: "Spotify" }
+            }
+        );
 
         if (state.view === "ROOT") {
             // 1. Artists Group (Yellow)
@@ -545,6 +618,8 @@
                 let subtitle = item.owner?.name;
                 if (!subtitle) {
                     if (isFolder) subtitle = "Folder";
+                    else if (item.uri === "spotify:collection:tracks") subtitle = "Playlist";
+                    else if (item.uri === "spotify:collection:local-files") subtitle = "Local Playlist";
                     else if (item.type) subtitle = item.type.charAt(0).toUpperCase() + item.type.slice(1);
                     else subtitle = "Playlist";
                 }
@@ -604,6 +679,7 @@
     try {
         Spicetify.Platform.LibraryAPI.getEvents?.()?.addListener?.("update", async () => {
             state.items = await fetchLibrary();
+            state.allPlaylists = await getPlaylistsRecursively(state.items);
             render();
         });
     } catch (e) { }
