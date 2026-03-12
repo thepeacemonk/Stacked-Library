@@ -14,7 +14,7 @@
         const style = document.createElement("style");
         style.id = STYLE_ID;
         style.textContent = `
-         /* Hide native list items, headers, filters, and huge virtual spacers */
+         /* Always hide native list items, headers, filters, and huge virtual spacers */
          .main-yourLibraryX-libraryContainer [role="list"],
          .main-yourLibraryX-libraryContainer [role="grid"],
          .main-yourLibraryX-libraryContainer [role="tree"],
@@ -29,6 +29,18 @@
          /* Hide the virtual spacer div that pushes our grid down */
          .main-yourLibraryX-libraryContainer .os-content > *:not(#stacked-library-root),
          .main-yourLibraryX-libraryContainer [data-overlayscrollbars-contents] > *:not(#stacked-library-root) {
+              display: none !important;
+         }
+
+         /* When collapsed, we show out custom grid as a single column and hide the texts */
+         body.sl-collapsed #stacked-library-grid {
+              grid-template-columns: 1fr !important;
+              padding: 16px 8px 24px !important;
+         }
+         
+         body.sl-collapsed .sl-title,
+         body.sl-collapsed .sl-subtitle,
+         body.sl-collapsed #stacked-library-topbar {
               display: none !important;
          }
 
@@ -415,18 +427,18 @@
             cover.style.backgroundPosition = "center";
         } else if (uri === "spotify:collection:tracks") {
             cover.style.background = "linear-gradient(135deg, #450af5, #c4efd9)";
-            cover.innerHTML = `<img src="https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/heart.svg" width="48" height="48" style="filter: invert(1); opacity: 0.9;" />`;
+            cover.innerHTML = `<img src="https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/heart.svg" style="width: 50%; height: 50%; filter: invert(1); opacity: 0.9;" />`;
         } else if (uri === "spotify:collection:local-files") {
             cover.style.background = "linear-gradient(135deg, #1db954, #191414)";
-            cover.innerHTML = `<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: white; opacity: 0.9;"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"></path><path d="M12 11v5"></path><circle cx="10.5" cy="16.5" r="1.5"></circle><path d="M12 11l3-1v4"></path></svg>`;
+            cover.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 50%; height: 50%; color: white; opacity: 0.9;"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"></path><path d="M12 11v5"></path><circle cx="10.5" cy="16.5" r="1.5"></circle><path d="M12 11l3-1v4"></path></svg>`;
         } else if (typeClass.includes("sl-folder")) {
-            cover.innerHTML = `<img src="https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/folder.svg" width="48" height="48" style="filter: invert(1); opacity: 0.85;" />`;
+            cover.innerHTML = `<img src="https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/folder.svg" style="width: 50%; height: 50%; filter: invert(1); opacity: 0.85;" />`;
         } else if (typeClass.includes("sl-group-artists")) {
-            cover.innerHTML = `<img src="https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/mic-2.svg" width="48" height="48" style="filter: invert(59%) sepia(72%) saturate(400%) hue-rotate(95deg) brightness(95%) contrast(90%);" />`;
+            cover.innerHTML = `<img src="https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/mic-2.svg" style="width: 50%; height: 50%; filter: invert(59%) sepia(72%) saturate(400%) hue-rotate(95deg) brightness(95%) contrast(90%);" />`;
         } else if (typeClass.includes("sl-group-albums")) {
-            cover.innerHTML = `<img src="https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/disc-3.svg" width="48" height="48" style="filter: invert(59%) sepia(72%) saturate(400%) hue-rotate(95deg) brightness(95%) contrast(90%);" />`;
+            cover.innerHTML = `<img src="https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/disc-3.svg" style="width: 50%; height: 50%; filter: invert(59%) sepia(72%) saturate(400%) hue-rotate(95deg) brightness(95%) contrast(90%);" />`;
         } else if (typeClass.includes("sl-group-playlists")) {
-            cover.innerHTML = `<img src="https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/list-music.svg" width="48" height="48" style="filter: invert(59%) sepia(72%) saturate(400%) hue-rotate(95deg) brightness(95%) contrast(90%);" />`;
+            cover.innerHTML = `<img src="https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/list-music.svg" style="width: 50%; height: 50%; filter: invert(59%) sepia(72%) saturate(400%) hue-rotate(95deg) brightness(95%) contrast(90%);" />`;
         }
 
         const titleEl = document.createElement("div");
@@ -981,6 +993,28 @@
     }
 
     render();
+
+    let resizeObserver = null;
+    function observeSidebar() {
+        if (resizeObserver) return;
+        const libraryContainer = document.querySelector(".main-yourLibraryX-libraryContainer") || document.querySelector(".Root__nav-bar");
+        if (!libraryContainer) {
+            setTimeout(observeSidebar, 500);
+            return;
+        }
+
+        resizeObserver = new ResizeObserver(entries => {
+            for (let entry of entries) {
+                if (entry.contentRect.width < 150) {
+                    document.body.classList.add("sl-collapsed");
+                } else {
+                    document.body.classList.remove("sl-collapsed");
+                }
+            }
+        });
+        resizeObserver.observe(libraryContainer);
+    }
+    observeSidebar();
 
     // Re-render when library updates
     try {
