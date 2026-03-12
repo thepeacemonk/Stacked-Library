@@ -38,9 +38,45 @@
               padding: 16px 8px 24px !important;
          }
          
+         /* Pills CSS */
+         .sl-pill {
+              display: flex;
+              align-items: center;
+              gap: 6px;
+              border-radius: 32px;
+              padding: 6px 14px;
+              font-size: 13px;
+              font-weight: 700;
+              border: none;
+              cursor: pointer;
+              transition: background-color 0.2s, transform 0.1s;
+         }
+         .sl-pill-icon {
+              display: none;
+              width: 16px;
+              height: 16px;
+         }
+         
+         body.sl-compact .sl-pill-text {
+              display: none;
+         }
+         body.sl-compact .sl-pill-icon {
+              display: flex;
+         }
+         body.sl-compact .sl-pill {
+              padding: 8px; /* perfect circle for 16px icon */
+              border-radius: 50%;
+         }
+
+         body.sl-tiny .sl-filter-container,
+         body.sl-collapsed .sl-filter-container {
+              display: none !important;
+         }
+
          body.sl-collapsed .sl-title,
          body.sl-collapsed .sl-subtitle,
-         body.sl-collapsed #stacked-library-topbar {
+         body.sl-collapsed #stacked-library-topbar,
+         body.sl-collapsed .sl-header-title {
               display: none !important;
          }
 
@@ -91,7 +127,7 @@
               width: 100%;
               aspect-ratio: 1 / 1;
               border-radius: 12px;
-              color: var(--spice-button, #1db954); /* Spotify Green for icons */
+              color: var(--spice-button, #1ED760); /* Spotify Green for icons */
          }
 
          .sl-title {
@@ -311,7 +347,7 @@
                             width: "100%",
                             padding: "10px 12px",
                             background: "var(--spice-main-elevated, #2a2a2a)",
-                            border: "2px solid var(--spice-button, #1db954)",
+                            border: "2px solid var(--spice-button, #1ED760)",
                             borderRadius: "4px",
                             color: "var(--spice-text, #fff)",
                             fontSize: "14px",
@@ -334,7 +370,7 @@
                         React.createElement("button", {
                             type: "submit",
                             style: {
-                                padding: "8px 20px", background: "var(--spice-button, #1db954)",
+                                padding: "8px 20px", background: "var(--spice-button, #1ED760)",
                                 color: "#000", border: "none", borderRadius: "500px",
                                 cursor: "pointer", fontSize: "13px", fontWeight: "700", fontFamily: "inherit"
                             }
@@ -429,16 +465,16 @@
             cover.style.background = "linear-gradient(135deg, #450af5, #c4efd9)";
             cover.innerHTML = `<img src="https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/heart.svg" style="width: 50%; height: 50%; filter: invert(1); opacity: 0.9;" />`;
         } else if (uri === "spotify:collection:local-files") {
-            cover.style.background = "linear-gradient(135deg, #1db954, #191414)";
+            cover.style.background = "linear-gradient(135deg, #1ED760, #191414)";
             cover.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 50%; height: 50%; color: white; opacity: 0.9;"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"></path><path d="M12 11v5"></path><circle cx="10.5" cy="16.5" r="1.5"></circle><path d="M12 11l3-1v4"></path></svg>`;
         } else if (typeClass.includes("sl-folder")) {
             cover.innerHTML = `<img src="https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/folder.svg" style="width: 50%; height: 50%; filter: invert(1); opacity: 0.85;" />`;
         } else if (typeClass.includes("sl-group-artists")) {
-            cover.innerHTML = `<img src="https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/mic-2.svg" style="width: 50%; height: 50%; filter: invert(59%) sepia(72%) saturate(400%) hue-rotate(95deg) brightness(95%) contrast(90%);" />`;
+            cover.innerHTML = `<img src="https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/mic-2.svg" style="width: 50%; height: 50%; filter: invert(66%) sepia(76%) saturate(2333%) hue-rotate(97deg) brightness(97%) contrast(93%);" />`;
         } else if (typeClass.includes("sl-group-albums")) {
-            cover.innerHTML = `<img src="https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/disc-3.svg" style="width: 50%; height: 50%; filter: invert(59%) sepia(72%) saturate(400%) hue-rotate(95deg) brightness(95%) contrast(90%);" />`;
+            cover.innerHTML = `<img src="https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/disc-3.svg" style="width: 50%; height: 50%; filter: invert(66%) sepia(76%) saturate(2333%) hue-rotate(97deg) brightness(97%) contrast(93%);" />`;
         } else if (typeClass.includes("sl-group-playlists")) {
-            cover.innerHTML = `<img src="https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/list-music.svg" style="width: 50%; height: 50%; filter: invert(59%) sepia(72%) saturate(400%) hue-rotate(95deg) brightness(95%) contrast(90%);" />`;
+            cover.innerHTML = `<img src="https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/list-music.svg" style="width: 50%; height: 50%; filter: invert(66%) sepia(76%) saturate(2333%) hue-rotate(97deg) brightness(97%) contrast(93%);" />`;
         }
 
         const titleEl = document.createElement("div");
@@ -476,20 +512,26 @@
         topbar.style.gap = "8px";
         topbar.style.padding = "16px 16px 0 16px";
         topbar.style.alignItems = "center";
-        topbar.style.flexWrap = "wrap";
+        topbar.style.flexWrap = "nowrap";
 
-        const createPill = (label, isActive, onClick) => {
+        const searchContainer = document.createElement("div");
+        searchContainer.style.position = "relative";
+        searchContainer.style.flexShrink = "0";
+
+        const filterContainer = document.createElement("div");
+        filterContainer.className = "sl-filter-container";
+        filterContainer.style.display = "flex";
+        filterContainer.style.gap = "8px";
+        filterContainer.style.marginLeft = "auto";
+        filterContainer.style.flexShrink = "0";
+
+        const createPill = (label, iconSvg, isActive, onClick) => {
             const btn = document.createElement("button");
-            btn.textContent = label;
-            btn.style.borderRadius = "32px";
-            btn.style.padding = "6px 14px";
-            btn.style.fontSize = "13px";
-            btn.style.fontWeight = "700";
-            btn.style.border = "none";
-            btn.style.cursor = "pointer";
-            btn.style.backgroundColor = isActive ? "var(--spice-button, #1db954)" : "var(--spice-main-elevated, #2a2a2a)";
+            btn.className = "sl-pill";
+            btn.innerHTML = `<span class="sl-pill-icon">${iconSvg}</span><span class="sl-pill-text">${label}</span>`;
+
+            btn.style.backgroundColor = isActive ? "var(--spice-button, #1ED760)" : "var(--spice-main-elevated, #2a2a2a)";
             btn.style.color = isActive ? "#000" : "var(--spice-text, #fff)";
-            btn.style.transition = "background-color 0.2s, transform 0.1s";
             if (!isActive) {
                 btn.onmouseenter = () => btn.style.backgroundColor = "var(--spice-highlight, #3a3a3a)";
                 btn.onmouseleave = () => btn.style.backgroundColor = "var(--spice-main-elevated, #2a2a2a)";
@@ -498,19 +540,17 @@
             return btn;
         };
 
-        topbar.appendChild(createPill("By you", state.filterOwn, () => {
+        const byYouIcon = `<svg role="img" height="16" width="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 8a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zm0-1.5a2 2 0 1 1 0-4 2 2 0 0 1 0 4zm-6 7c0-2.4 2-4.5 6-4.5s6 2.1 6 4.5v1H2v-1z"></path></svg>`;
+        filterContainer.appendChild(createPill("By you", byYouIcon, state.filterOwn, () => {
             state.filterOwn = !state.filterOwn;
             render();
         }));
 
-        topbar.appendChild(createPill("Alphabetical", state.sortAlpha, () => {
+        const alphaIcon = `<svg role="img" height="16" width="16" viewBox="0 0 16 16" fill="currentColor"><path d="M3.25 1v14h1.5V1h-1.5z"></path><path d="m11.25 1-4.25 5h3v9h1.5V6h3l-4-5z"></path></svg>`;
+        filterContainer.appendChild(createPill("Alphabetical", alphaIcon, state.sortAlpha, () => {
             state.sortAlpha = !state.sortAlpha;
             render();
         }));
-
-        const searchContainer = document.createElement("div");
-        searchContainer.style.position = "relative";
-        searchContainer.style.marginLeft = "auto";
 
         const searchInput = document.createElement("input");
         searchInput.type = "text";
@@ -642,12 +682,12 @@
                 let src = getImageUrl(item);
                 if (!src && item.uri === "spotify:collection:tracks") {
                     imgWrap.style.background = "linear-gradient(135deg, #450af5, #c4efd9)";
-                    imgWrap.innerHTML = `<img src="https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/heart.svg" width="24" height="24" style="filter: invert(1); opacity: 0.9;" />`;
+                    imgWrap.innerHTML = `<img src="https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/heart.svg" style="width: 50%; height: 50%; filter: invert(1); opacity: 0.9;" />`;
                 } else if (!src && item.uri === "spotify:collection:local-files") {
-                    imgWrap.style.background = "linear-gradient(135deg, #1db954, #191414)";
-                    imgWrap.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: white; opacity: 0.9;"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"></path><path d="M12 11v5"></path><circle cx="10.5" cy="16.5" r="1.5"></circle><path d="M12 11l3-1v4"></path></svg>`;
+                    imgWrap.style.background = "linear-gradient(135deg, #1ED760, #191414)";
+                    imgWrap.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 50%; height: 50%; color: white; opacity: 0.9;"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"></path><path d="M12 11v5"></path><circle cx="10.5" cy="16.5" r="1.5"></circle><path d="M12 11l3-1v4"></path></svg>`;
                 } else if (!src) {
-                    imgWrap.innerHTML = `<img src="https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/music.svg" width="20" height="20" style="filter: invert(0.5);" />`;
+                    imgWrap.innerHTML = `<img src="https://cdn.jsdelivr.net/npm/lucide-static@latest/icons/music.svg" style="width: 50%; height: 50%; filter: invert(0.5);" />`;
                 } else {
                     const img = document.createElement("img");
                     img.src = src;
@@ -717,6 +757,7 @@
         }
 
         topbar.appendChild(searchContainer);
+        topbar.appendChild(filterContainer);
 
         container.appendChild(topbar);
 
@@ -1005,10 +1046,18 @@
 
         resizeObserver = new ResizeObserver(entries => {
             for (let entry of entries) {
-                if (entry.contentRect.width < 150) {
+                const w = entry.contentRect.width;
+                if (w < 150) {
                     document.body.classList.add("sl-collapsed");
+                    document.body.classList.remove("sl-tiny", "sl-compact");
+                } else if (w < 220) {
+                    document.body.classList.add("sl-tiny");
+                    document.body.classList.remove("sl-collapsed", "sl-compact");
+                } else if (w < 300) {
+                    document.body.classList.add("sl-compact");
+                    document.body.classList.remove("sl-collapsed", "sl-tiny");
                 } else {
-                    document.body.classList.remove("sl-collapsed");
+                    document.body.classList.remove("sl-collapsed", "sl-tiny", "sl-compact");
                 }
             }
         });
