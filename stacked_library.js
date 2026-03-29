@@ -14,22 +14,21 @@
         const style = document.createElement("style");
         style.id = STYLE_ID;
         style.textContent = `
-         /* Always hide native list items, headers, filters, and huge virtual spacers */
-         .main-yourLibraryX-libraryContainer [role="list"],
-         .main-yourLibraryX-libraryContainer [role="grid"],
-         .main-yourLibraryX-libraryContainer [role="tree"],
-         .main-yourLibraryX-libraryContainer ul,
-         .main-yourLibraryX-header,
-         .main-useCaseFilter-filterSpace,
-         .main-yourLibraryX-filterArea,
-         .main-yourLibraryX-libraryFilter {
+         /* Hide all native library elements to ensure our custom UI is the only one visible */
+         .main-yourLibraryX-libraryContainer > *:not(#stacked-library-root) {
               display: none !important;
          }
          
-         /* Hide the virtual spacer div that pushes our grid down */
-         .main-yourLibraryX-libraryContainer .os-content > *:not(#stacked-library-root),
-         .main-yourLibraryX-libraryContainer [data-overlayscrollbars-contents] > *:not(#stacked-library-root) {
-              display: none !important;
+         /* Provide necessary layout properties to our root element */
+         #stacked-library-root {
+              flex: 1;
+              width: 100%;
+              overflow-y: auto;
+              overflow-x: hidden;
+              scrollbar-width: none; /* Hide native scrollbar for a seamless look */
+         }
+         #stacked-library-root::-webkit-scrollbar {
+              display: none;
          }
 
          /* When collapsed, we show out custom grid as a single column and hide the texts */
@@ -280,15 +279,11 @@
     }
 
     function scrollToTop() {
-        const libraryContainer = document.querySelector(".main-yourLibraryX-libraryContainer");
-        if (!libraryContainer) return;
-        const scrollViewport = libraryContainer.querySelector('.os-viewport') ||
-            libraryContainer.querySelector('[data-overlayscrollbars-viewport]') ||
-            libraryContainer;
-        if (scrollViewport.scrollTo) {
-            scrollViewport.scrollTo({ top: 0, behavior: "auto" });
-        } else {
-            scrollViewport.scrollTop = 0;
+        const root = document.getElementById("stacked-library-root");
+        if (root && root.scrollTo) {
+            root.scrollTo({ top: 0, behavior: "auto" });
+        } else if (root) {
+            root.scrollTop = 0;
         }
     }
 
@@ -604,8 +599,8 @@
         searchResults.id = "sl-search-results";
         searchResults.style.position = "absolute";
         searchResults.style.top = "100%";
-        searchResults.style.left = "auto";
-        searchResults.style.right = "0"; // Align to right because it's at the end
+        searchResults.style.left = "0";
+        searchResults.style.right = "auto"; // Align to left so it doesn't get clipped on the left edge
         searchResults.style.marginTop = "8px";
         searchResults.style.width = "280px";
         searchResults.style.maxHeight = "400px";
@@ -796,21 +791,16 @@
             return;
         }
 
-        // Look for the scrollable child usually underneath the virtual list wrapper
-        const scrollContainer = libraryContainer.querySelector('.os-content') ||
-            libraryContainer.querySelector('[data-overlayscrollbars-contents]') ||
-            libraryContainer.querySelector('.os-viewport') ||
-            libraryContainer;
-
         let rootContainer = document.getElementById("stacked-library-root");
         if (!rootContainer) {
             rootContainer = document.createElement("div");
             rootContainer.id = "stacked-library-root";
 
-            // We prepend directly to the content container to be at the true top
-            scrollContainer.prepend(rootContainer);
-        } else if (rootContainer.parentElement !== scrollContainer) {
-            scrollContainer.prepend(rootContainer);
+            // Append directly to the library container. 
+            // Our CSS hides all other native children so we don't worry about Spotify's internal DOM structure.
+            libraryContainer.appendChild(rootContainer);
+        } else if (rootContainer.parentElement !== libraryContainer) {
+            libraryContainer.appendChild(rootContainer);
         }
 
         // Ensure items are fetched
